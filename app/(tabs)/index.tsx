@@ -24,6 +24,9 @@ export default function HomeScreen() {
   const [datKredi, setDatKredi] = useState('');
 
   const [vantYo, setVantYo] = useState<any[]>([]);
+  const [stockYo, setStockYo] = useState<any[]>([]);
+  const [achaPwodwi, setAchaPwodwi] = useState('');
+  const [achaKantite, setAchaKantite] = useState('');
   const [isHydrated, setIsHydrated] = useState(false);
 
   const total = Number(pri) * Number(kantite);
@@ -33,11 +36,26 @@ export default function HomeScreen() {
     0
   );
 
-  const sauvegarderVantYo = async () => {
+  const netwayeNonPwodwi = (val: string) =>
+    val.trim().toLowerCase();
+
+  const jwennStockPwodwi = (nonPwodwi: string) => {
+    const kle = netwayeNonPwodwi(nonPwodwi);
+
+    return stockYo.find(
+      (stock) => netwayeNonPwodwi(stock.pwodwi) === kle
+    );
+  };
+
+  const sauvegarderDoneYo = async () => {
 
     await AsyncStorage.setItem(
       'vantYo',
       JSON.stringify(vantYo)
+    );
+    await AsyncStorage.setItem(
+      'stockYo',
+      JSON.stringify(stockYo)
     );
 
   };
@@ -48,8 +66,11 @@ export default function HomeScreen() {
 
     (async () => {
 
-      const vantYoSove =
-        await AsyncStorage.getItem('vantYo');
+      const [vantYoSove, stockYoSove] =
+        await Promise.all([
+          AsyncStorage.getItem('vantYo'),
+          AsyncStorage.getItem('stockYo'),
+        ]);
 
       if (cancelled) {
         return;
@@ -64,6 +85,34 @@ export default function HomeScreen() {
         try {
 
           const parsed = JSON.parse(vantYoSove);
+
+          if (!Array.isArray(parsed)) {
+            return current;
+          }
+
+          if (current.length === 0) {
+            return parsed;
+          }
+
+          return [...parsed, ...current];
+
+        } catch {
+
+          return current;
+
+        }
+
+      });
+
+      setStockYo((current) => {
+
+        if (!stockYoSove) {
+          return current;
+        }
+
+        try {
+
+          const parsed = JSON.parse(stockYoSove);
 
           if (!Array.isArray(parsed)) {
             return current;
@@ -103,9 +152,9 @@ export default function HomeScreen() {
       return;
     }
 
-    sauvegarderVantYo();
+    sauvegarderDoneYo();
 
-  }, [vantYo, isHydrated]);
+  }, [vantYo, stockYo, isHydrated]);
 
   return (
     <ParallaxScrollView
@@ -201,9 +250,31 @@ export default function HomeScreen() {
         Total: {total}
       </ThemedText>
 
+      <ThemedText style={styles.stockInfo}>
+        Stock aktyel pou pwodwi sa a: {jwennStockPwodwi(pwodwi)?.kantite ?? 0}
+      </ThemedText>
+
       <Button
         title="Anrejistre Vant"
         onPress={() => {
+          const kantiteVann = Number(kantite);
+          const stockPwodwi = jwennStockPwodwi(pwodwi);
+          const stockDisponib = stockPwodwi?.kantite ?? 0;
+
+          if (!pwodwi.trim()) {
+            alert('Tanpri antre non pwodwi a');
+            return;
+          }
+
+          if (Number.isNaN(kantiteVann) || kantiteVann <= 0) {
+            alert('Tanpri antre yon kantite ki valab');
+            return;
+          }
+
+          if (stockDisponib < kantiteVann) {
+            alert('Stock pa sifi pou vann sa');
+            return;
+          }
 
           const datJodiA =
             new Date().toLocaleString();
@@ -220,6 +291,21 @@ export default function HomeScreen() {
           };
 
           setVantYo([...vantYo, nouvoVant]);
+          setStockYo((current) =>
+            current.map((stock) => {
+              if (
+                netwayeNonPwodwi(stock.pwodwi) ===
+                netwayeNonPwodwi(pwodwi)
+              ) {
+                return {
+                  ...stock,
+                  kantite: stock.kantite - kantiteVann,
+                };
+              }
+
+              return stock;
+            })
+          );
 
           setNonKliyan('');
           setPwodwi('');
@@ -241,6 +327,98 @@ export default function HomeScreen() {
         title="Efase Tout Vant Yo"
         onPress={() => setVantYo([])}
       />
+
+      <ThemedText style={styles.label}>
+        Acha Stock
+      </ThemedText>
+
+      <TextInput
+        placeholder="Non pwodwi pou acha"
+        style={styles.input}
+        value={achaPwodwi}
+        onChangeText={setAchaPwodwi}
+      />
+
+      <TextInput
+        placeholder="Kantite acha"
+        style={styles.input}
+        value={achaKantite}
+        onChangeText={setAchaKantite}
+        keyboardType="numeric"
+      />
+
+      <Button
+        title="Anrejistre Acha"
+        onPress={() => {
+          const nonPwodwiAcha = achaPwodwi.trim();
+          const kantiteAchaVal = Number(achaKantite);
+
+          if (!nonPwodwiAcha) {
+            alert('Tanpri antre non pwodwi pou acha');
+            return;
+          }
+
+          if (Number.isNaN(kantiteAchaVal) || kantiteAchaVal <= 0) {
+            alert('Tanpri antre yon kantite acha ki valab');
+            return;
+          }
+
+          setStockYo((current) => {
+            const indexStock = current.findIndex(
+              (stock) =>
+                netwayeNonPwodwi(stock.pwodwi) ===
+                netwayeNonPwodwi(nonPwodwiAcha)
+            );
+
+            if (indexStock === -1) {
+              return [
+                ...current,
+                {
+                  pwodwi: nonPwodwiAcha,
+                  kantite: kantiteAchaVal,
+                },
+              ];
+            }
+
+            return current.map((stock, index) => {
+              if (index !== indexStock) {
+                return stock;
+              }
+
+              return {
+                ...stock,
+                kantite: stock.kantite + kantiteAchaVal,
+              };
+            });
+          });
+
+          setAchaPwodwi('');
+          setAchaKantite('');
+          alert('Acha anrejistre');
+        }}
+      />
+
+      <ThemedText style={styles.totalGeneral}>
+        Lis Stock
+      </ThemedText>
+
+      {stockYo.length === 0 ? (
+        <ThemedText>Pa gen stock anrejistre.</ThemedText>
+      ) : (
+        stockYo.map((stock, index) => (
+          <ThemedView
+            key={`${stock.pwodwi}-${index}`}
+            style={styles.vantCard}
+          >
+            <ThemedText>
+              Pwodwi: {stock.pwodwi}
+            </ThemedText>
+            <ThemedText>
+              Stock: {stock.kantite}
+            </ThemedText>
+          </ThemedView>
+        ))
+      )}
 
       {vantYo.map((vant, index) => (
         <ThemedView
@@ -354,8 +532,13 @@ const styles = StyleSheet.create({
 
   totalText: {
     marginTop: 20,
-    marginBottom: 20,
+    marginBottom: 10,
     fontSize: 18,
+  },
+
+  stockInfo: {
+    marginBottom: 20,
+    fontSize: 16,
   },
 
   totalGeneral: {
