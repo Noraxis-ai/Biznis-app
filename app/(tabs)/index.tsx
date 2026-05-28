@@ -25,6 +25,7 @@ export default function HomeScreen() {
 
   const [vantYo, setVantYo] = useState<any[]>([]);
   const [stockYo, setStockYo] = useState<any[]>([]);
+  const [tranzaksyonYo, setTranzaksyonYo] = useState<any[]>([]);
   const [achaPwodwi, setAchaPwodwi] = useState('');
   const [achaKantite, setAchaKantite] = useState('');
   const [isHydrated, setIsHydrated] = useState(false);
@@ -57,6 +58,10 @@ export default function HomeScreen() {
       'stockYo',
       JSON.stringify(stockYo)
     );
+    await AsyncStorage.setItem(
+      'tranzaksyonYo',
+      JSON.stringify(tranzaksyonYo)
+    );
 
   };
 
@@ -66,10 +71,15 @@ export default function HomeScreen() {
 
     (async () => {
 
-      const [vantYoSove, stockYoSove] =
+      const [
+        vantYoSove,
+        stockYoSove,
+        tranzaksyonYoSove,
+      ] =
         await Promise.all([
           AsyncStorage.getItem('vantYo'),
           AsyncStorage.getItem('stockYo'),
+          AsyncStorage.getItem('tranzaksyonYo'),
         ]);
 
       if (cancelled) {
@@ -132,6 +142,34 @@ export default function HomeScreen() {
 
       });
 
+      setTranzaksyonYo((current) => {
+
+        if (!tranzaksyonYoSove) {
+          return current;
+        }
+
+        try {
+
+          const parsed = JSON.parse(tranzaksyonYoSove);
+
+          if (!Array.isArray(parsed)) {
+            return current;
+          }
+
+          if (current.length === 0) {
+            return parsed;
+          }
+
+          return [...current, ...parsed];
+
+        } catch {
+
+          return current;
+
+        }
+
+      });
+
       if (cancelled) {
         return;
       }
@@ -154,7 +192,7 @@ export default function HomeScreen() {
 
     sauvegarderDoneYo();
 
-  }, [vantYo, stockYo, isHydrated]);
+  }, [vantYo, stockYo, tranzaksyonYo, isHydrated]);
 
   return (
     <ParallaxScrollView
@@ -291,6 +329,17 @@ export default function HomeScreen() {
           };
 
           setVantYo([...vantYo, nouvoVant]);
+          setTranzaksyonYo((current) => [
+            {
+              tip: 'Vant',
+              pwodwi: pwodwi,
+              kantite: kantiteVann,
+              total: total,
+              nonKliyan: nonKliyan,
+              dat: datJodiA,
+            },
+            ...current,
+          ]);
           setStockYo((current) =>
             current.map((stock) => {
               if (
@@ -352,6 +401,7 @@ export default function HomeScreen() {
         onPress={() => {
           const nonPwodwiAcha = achaPwodwi.trim();
           const kantiteAchaVal = Number(achaKantite);
+          const datJodiA = new Date().toLocaleString();
 
           if (!nonPwodwiAcha) {
             alert('Tanpri antre non pwodwi pou acha');
@@ -391,6 +441,17 @@ export default function HomeScreen() {
               };
             });
           });
+          setTranzaksyonYo((current) => [
+            {
+              tip: 'Acha',
+              pwodwi: nonPwodwiAcha,
+              kantite: kantiteAchaVal,
+              total: null,
+              nonKliyan: '',
+              dat: datJodiA,
+            },
+            ...current,
+          ]);
 
           setAchaPwodwi('');
           setAchaKantite('');
@@ -415,6 +476,40 @@ export default function HomeScreen() {
             </ThemedText>
             <ThemedText>
               Stock: {stock.kantite}
+            </ThemedText>
+          </ThemedView>
+        ))
+      )}
+
+      <ThemedText style={styles.totalGeneral}>
+        Istorik Tranzaksyon
+      </ThemedText>
+
+      {tranzaksyonYo.length === 0 ? (
+        <ThemedText>Pa gen tranzaksyon anrejistre.</ThemedText>
+      ) : (
+        tranzaksyonYo.map((tranzaksyon, index) => (
+          <ThemedView
+            key={`${tranzaksyon.tip}-${tranzaksyon.dat}-${index}`}
+            style={styles.vantCard}
+          >
+            <ThemedText>
+              Tip: {tranzaksyon.tip}
+            </ThemedText>
+            <ThemedText>
+              Dat: {tranzaksyon.dat}
+            </ThemedText>
+            <ThemedText>
+              Pwodwi: {tranzaksyon.pwodwi}
+            </ThemedText>
+            <ThemedText>
+              Kantite: {tranzaksyon.kantite}
+            </ThemedText>
+            <ThemedText>
+              Total: {tranzaksyon.total ?? 'Pa aplikab'}
+            </ThemedText>
+            <ThemedText>
+              Kliyan: {tranzaksyon.nonKliyan || 'Pa aplikab'}
             </ThemedText>
           </ThemedView>
         ))
