@@ -27,10 +27,15 @@ export default function HomeScreen() {
   const [stockYo, setStockYo] = useState<any[]>([]);
   const [tranzaksyonYo, setTranzaksyonYo] = useState<any[]>([]);
   const [achaPwodwi, setAchaPwodwi] = useState('');
+  const [achaPri, setAchaPri] = useState('');
   const [achaKantite, setAchaKantite] = useState('');
+  const [filtreTranzaksyon, setFiltreTranzaksyon] = useState<
+    'Tout' | 'Vant' | 'Acha' | 'Kredi'
+  >('Tout');
   const [isHydrated, setIsHydrated] = useState(false);
 
   const total = Number(pri) * Number(kantite);
+  const totalAcha = Number(achaPri) * Number(achaKantite);
 
   const totalJeneral = vantYo.reduce(
     (sum, vant) => sum + vant.total,
@@ -40,6 +45,122 @@ export default function HomeScreen() {
   const netwayeNonPwodwi = (val: string) =>
     val.trim().toLowerCase();
 
+  const jwennMontan = (val: unknown) => {
+    const n = Number(val);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const jwennDatJodiA = (dat: Date = new Date()) => {
+    const ane = dat.getFullYear();
+    const mwa = String(dat.getMonth() + 1).padStart(2, '0');
+    const jou = String(dat.getDate()).padStart(2, '0');
+    return `${ane}-${mwa}-${jou}`;
+  };
+
+  const kreyeDatTranzaksyon = () => {
+    const kounyeA = new Date();
+    return {
+      dat: kounyeA.toLocaleString(),
+      datJour: jwennDatJodiA(kounyeA),
+      datTimestamp: kounyeA.getTime(),
+    };
+  };
+
+  const normalizeTip = (tranzaksyon: {
+    tip?: string;
+    priAcha?: unknown;
+  }): 'Vant' | 'Acha' => {
+    const tip = String(tranzaksyon.tip ?? '').trim();
+    if (tip === 'Vant' || tip === 'Acha') {
+      return tip;
+    }
+    if (
+      tranzaksyon.priAcha !== null &&
+      tranzaksyon.priAcha !== undefined &&
+      tranzaksyon.priAcha !== ''
+    ) {
+      return 'Acha';
+    }
+    return 'Vant';
+  };
+
+  const seTipVant = (tranzaksyon: { tip?: string; priAcha?: unknown }) =>
+    normalizeTip(tranzaksyon) === 'Vant';
+
+  const seTipAcha = (tranzaksyon: { tip?: string; priAcha?: unknown }) =>
+    normalizeTip(tranzaksyon) === 'Acha';
+
+  const prepareTranzaksyon = (liste: any[]) =>
+    liste.map((t) => {
+      const tip = normalizeTip(t);
+      let datJour = t.datJour;
+      if (!datJour && typeof t.datTimestamp === 'number') {
+        datJour = jwennDatJodiA(new Date(t.datTimestamp));
+      }
+      if (!datJour && t.dat) {
+        const parsed = Date.parse(t.dat);
+        if (!Number.isNaN(parsed)) {
+          datJour = jwennDatJodiA(new Date(parsed));
+        }
+      }
+      return {
+        ...t,
+        tip,
+        datJour,
+        total: jwennMontan(t.total),
+      };
+    });
+
+  const seJodiA = (tranzaksyon: {
+    dat?: string;
+    datJour?: string;
+    datTimestamp?: number;
+  }) => {
+    const jodiAKle = jwennDatJodiA();
+    if (tranzaksyon.datJour === jodiAKle) {
+      return true;
+    }
+    if (typeof tranzaksyon.datTimestamp === 'number') {
+      return (
+        jwennDatJodiA(new Date(tranzaksyon.datTimestamp)) === jodiAKle
+      );
+    }
+    if (!tranzaksyon.dat) {
+      return false;
+    }
+    const parsed = Date.parse(tranzaksyon.dat);
+    if (!Number.isNaN(parsed)) {
+      return jwennDatJodiA(new Date(parsed)) === jodiAKle;
+    }
+    const datLokal = new Date().toLocaleDateString();
+    return (
+      tranzaksyon.dat.startsWith(datLokal) ||
+      tranzaksyon.dat.includes(datLokal)
+    );
+  };
+
+  const jwennTotalTranzaksyon = (tranzaksyon: {
+    tip?: string;
+    total?: unknown;
+    priAcha?: unknown;
+    kantite?: unknown;
+  }) => {
+    if (normalizeTip(tranzaksyon) === 'Acha') {
+      if (
+        tranzaksyon.total !== null &&
+        tranzaksyon.total !== undefined &&
+        tranzaksyon.total !== ''
+      ) {
+        return jwennMontan(tranzaksyon.total);
+      }
+      return (
+        jwennMontan(tranzaksyon.priAcha) *
+        jwennMontan(tranzaksyon.kantite)
+      );
+    }
+    return jwennMontan(tranzaksyon.total);
+  };
+
   const jwennStockPwodwi = (nonPwodwi: string) => {
     const kle = netwayeNonPwodwi(nonPwodwi);
 
@@ -47,6 +168,51 @@ export default function HomeScreen() {
       (stock) => netwayeNonPwodwi(stock.pwodwi) === kle
     );
   };
+
+  const filtreTranzaksyonYo = (liste: any[]) => {
+    switch (filtreTranzaksyon) {
+      case 'Vant':
+        return liste.filter((t) => seTipVant(t));
+      case 'Acha':
+        return liste.filter((t) => seTipAcha(t));
+      case 'Kredi':
+        return liste.filter(
+          (t) => seTipVant(t) && t.kredi === 'Wi'
+        );
+      default:
+        return liste;
+    }
+  };
+
+  const tranzaksyonAfiche = filtreTranzaksyonYo(tranzaksyonYo);
+
+  const tranzaksyonJodiA = tranzaksyonYo.filter((t) => seJodiA(t));
+
+  const tranzaksyonVantJodiA = tranzaksyonYo.filter(
+    (t) => seTipVant(t) && seJodiA(t)
+  );
+
+  const tranzaksyonAchaJodiA = tranzaksyonYo.filter(
+    (t) => seTipAcha(t) && seJodiA(t)
+  );
+
+  const totalVantJodiA = tranzaksyonVantJodiA.reduce(
+    (sum, t) => sum + jwennMontan(t.total),
+    0
+  );
+
+  const totalDepansAchaJodiA = tranzaksyonAchaJodiA.reduce(
+    (sum, t) => sum + jwennTotalTranzaksyon(t),
+    0
+  );
+
+  const pwofiJodiA = totalVantJodiA - totalDepansAchaJodiA;
+
+  const totalKrediJodiA = tranzaksyonYo
+    .filter((t) => seTipVant(t) && t.kredi === 'Wi' && seJodiA(t))
+    .reduce((sum, t) => sum + jwennMontan(t.total), 0);
+
+  const kantiteTranzaksyonJodiA = tranzaksyonJodiA.length;
 
   const sauvegarderDoneYo = async () => {
 
@@ -150,17 +316,19 @@ export default function HomeScreen() {
 
         try {
 
-          const parsed = JSON.parse(tranzaksyonYoSove);
+          const raw = JSON.parse(tranzaksyonYoSove);
 
-          if (!Array.isArray(parsed)) {
+          if (!Array.isArray(raw)) {
             return current;
           }
+
+          const parsed = prepareTranzaksyon(raw);
 
           if (current.length === 0) {
             return parsed;
           }
 
-          return [...current, ...parsed];
+          return prepareTranzaksyon([...current, ...parsed]);
 
         } catch {
 
@@ -212,6 +380,27 @@ export default function HomeScreen() {
       <ThemedView style={styles.titleContainer}>
         <ThemedText type="title">
           Biznis App
+        </ThemedText>
+      </ThemedView>
+
+      <ThemedView style={styles.dashboardCard}>
+        <ThemedText style={styles.dashboardTitle}>
+          Tablo Jodi a
+        </ThemedText>
+        <ThemedText style={styles.dashboardLine}>
+          Total vant jodi a: {jwennMontan(totalVantJodiA)}
+        </ThemedText>
+        <ThemedText style={styles.dashboardLine}>
+          Total depans acha jodi a: {jwennMontan(totalDepansAchaJodiA)}
+        </ThemedText>
+        <ThemedText style={styles.dashboardLine}>
+          Pwofi jodi a: {jwennMontan(pwofiJodiA)}
+        </ThemedText>
+        <ThemedText style={styles.dashboardLine}>
+          Total kredi jodi a: {jwennMontan(totalKrediJodiA)}
+        </ThemedText>
+        <ThemedText style={styles.dashboardLine}>
+          Kantite tranzaksyon jodi a: {jwennMontan(kantiteTranzaksyonJodiA)}
         </ThemedText>
       </ThemedView>
 
@@ -314,18 +503,21 @@ export default function HomeScreen() {
             return;
           }
 
-          const datJodiA =
-            new Date().toLocaleString();
+          const totalVant = jwennMontan(
+            Number(pri) * Number(kantiteVann)
+          );
+          const { dat, datJour, datTimestamp } =
+            kreyeDatTranzaksyon();
 
           const nouvoVant = {
             nonKliyan: nonKliyan,
             pwodwi: pwodwi,
             pri: pri,
             kantite: kantite,
-            total: total,
+            total: totalVant,
             kredi: kredi,
             datKredi: datKredi,
-            dat: datJodiA,
+            dat: dat,
           };
 
           setVantYo([...vantYo, nouvoVant]);
@@ -334,9 +526,13 @@ export default function HomeScreen() {
               tip: 'Vant',
               pwodwi: pwodwi,
               kantite: kantiteVann,
-              total: total,
+              total: totalVant,
               nonKliyan: nonKliyan,
-              dat: datJodiA,
+              kredi: kredi,
+              datKredi: datKredi,
+              dat: dat,
+              datJour: datJour,
+              datTimestamp: datTimestamp,
             },
             ...current,
           ]);
@@ -389,6 +585,14 @@ export default function HomeScreen() {
       />
 
       <TextInput
+        placeholder="Pri acha"
+        style={styles.input}
+        value={achaPri}
+        onChangeText={setAchaPri}
+        keyboardType="numeric"
+      />
+
+      <TextInput
         placeholder="Kantite acha"
         style={styles.input}
         value={achaKantite}
@@ -396,15 +600,27 @@ export default function HomeScreen() {
         keyboardType="numeric"
       />
 
+      <ThemedText style={styles.totalText}>
+        Total acha: {totalAcha}
+      </ThemedText>
+
       <Button
         title="Anrejistre Acha"
         onPress={() => {
           const nonPwodwiAcha = achaPwodwi.trim();
+          const priAchaVal = Number(achaPri);
           const kantiteAchaVal = Number(achaKantite);
-          const datJodiA = new Date().toLocaleString();
+          const totalAchaVal = priAchaVal * kantiteAchaVal;
+          const { dat, datJour, datTimestamp } =
+            kreyeDatTranzaksyon();
 
           if (!nonPwodwiAcha) {
             alert('Tanpri antre non pwodwi pou acha');
+            return;
+          }
+
+          if (Number.isNaN(priAchaVal) || priAchaVal < 0) {
+            alert('Tanpri antre yon pri acha ki valab');
             return;
           }
 
@@ -446,14 +662,18 @@ export default function HomeScreen() {
               tip: 'Acha',
               pwodwi: nonPwodwiAcha,
               kantite: kantiteAchaVal,
-              total: null,
+              priAcha: priAchaVal,
+              total: totalAchaVal,
               nonKliyan: '',
-              dat: datJodiA,
+              dat: dat,
+              datJour: datJour,
+              datTimestamp: datTimestamp,
             },
             ...current,
           ]);
 
           setAchaPwodwi('');
+          setAchaPri('');
           setAchaKantite('');
           alert('Acha anrejistre');
         }}
@@ -485,10 +705,29 @@ export default function HomeScreen() {
         Istorik Tranzaksyon
       </ThemedText>
 
+      <ThemedView style={styles.filtreContainer}>
+        {(['Tout', 'Vant', 'Acha', 'Kredi'] as const).map((filtre) => (
+          <TouchableOpacity
+            key={filtre}
+            style={[
+              styles.boutonFiltre,
+              filtreTranzaksyon === filtre && styles.boutonFiltreActif,
+            ]}
+            onPress={() => setFiltreTranzaksyon(filtre)}
+          >
+            <ThemedText style={styles.textBouton}>
+              {filtre}
+            </ThemedText>
+          </TouchableOpacity>
+        ))}
+      </ThemedView>
+
       {tranzaksyonYo.length === 0 ? (
         <ThemedText>Pa gen tranzaksyon anrejistre.</ThemedText>
+      ) : tranzaksyonAfiche.length === 0 ? (
+        <ThemedText>Pa gen tranzaksyon pou filtre sa a.</ThemedText>
       ) : (
-        tranzaksyonYo.map((tranzaksyon, index) => (
+        tranzaksyonAfiche.map((tranzaksyon, index) => (
           <ThemedView
             key={`${tranzaksyon.tip}-${tranzaksyon.dat}-${index}`}
             style={styles.vantCard}
@@ -508,9 +747,19 @@ export default function HomeScreen() {
             <ThemedText>
               Total: {tranzaksyon.total ?? 'Pa aplikab'}
             </ThemedText>
+            {tranzaksyon.tip === 'Acha' && (
+              <ThemedText>
+                Pri acha: {tranzaksyon.priAcha ?? 'Pa defini'}
+              </ThemedText>
+            )}
             <ThemedText>
               Kliyan: {tranzaksyon.nonKliyan || 'Pa aplikab'}
             </ThemedText>
+            {tranzaksyon.tip === 'Vant' && (
+              <ThemedText>
+                Kredi: {tranzaksyon.kredi || 'Pa defini'}
+              </ThemedText>
+            )}
           </ThemedView>
         ))
       )}
@@ -583,6 +832,23 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
+  dashboardCard: {
+    padding: 15,
+    borderRadius: 10,
+    backgroundColor: '#e8f4fc',
+    gap: 8,
+  },
+
+  dashboardTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+
+  dashboardLine: {
+    fontSize: 16,
+  },
+
   input: {
     borderWidth: 1,
     marginTop: 15,
@@ -601,6 +867,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginTop: 15,
+  },
+
+  filtreContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 10,
+  },
+
+  boutonFiltre: {
+    backgroundColor: '#3498db',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+  },
+
+  boutonFiltreActif: {
+    backgroundColor: 'green',
   },
 
   boutonKredi: {
